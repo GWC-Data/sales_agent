@@ -1,0 +1,147 @@
+import React, { useReducer, useState, useEffect, useRef } from "react";
+import { Bell, Activity, ClipboardList, History, LayoutGrid } from "lucide-react";
+import { FONT_IMPORT, DISPLAY } from "./lib/constants";
+import { AGENT_META, AGENT_SCREEN_LABELS } from "./lib/seedData";
+import { initialState, reducer } from "./state/reducer";
+import { DetailContext, Mono, HitlBadge, SystemsFlow, agentHealth } from "./components/shared";
+import { Overview } from "./components/Overview";
+import { ApprovalCenter } from "./components/ApprovalCenter";
+import { AuditTrail } from "./components/AuditTrail";
+import { DetailModal } from "./components/DetailModal";
+import { A1Screen1, A1Screen2, A1Screen3 } from "./components/agents/Agent1";
+import { A2Screen1, A2Screen2, A2Screen3 } from "./components/agents/Agent2";
+import { A3Screen1, A3Screen2, A3Screen3 } from "./components/agents/Agent3";
+import { A4Screen1, A4Screen2, A4Screen3 } from "./components/agents/Agent4";
+import { A5Screen1, A5Screen2, A5Screen3 } from "./components/agents/Agent5";
+import { A6Screen1, A6Screen2, A6Screen3 } from "./components/agents/Agent6";
+import { A7Screen1, A7Screen2, A7Screen3 } from "./components/agents/Agent7";
+
+/* =========================================================================
+   APP SHELL
+========================================================================= */
+export default function App() {
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const [view, setView] = useState(-1);
+  const [screenIdx, setScreenIdx] = useState(0);
+  const [demoStep, setDemoStep] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const timerRef = useRef(null);
+
+  const goTo = (agentIdx, screen = 0) => { setView(agentIdx); setScreenIdx(screen); };
+  const openDetail = (kind, id) => setDetail({ kind, id });
+
+  useEffect(() => {
+    if (!demoStep) return;
+    clearTimeout(timerRef.current);
+    if (demoStep === "select") { setView(0); setScreenIdx(0); timerRef.current = setTimeout(() => setDemoStep("analyzing"), 900); }
+    else if (demoStep === "analyzing") { dispatch({ type: "TRIGGER_RUN", agent: "a1" }); timerRef.current = setTimeout(() => setDemoStep("detail"), 7 * 460 + 1100); }
+    else if (demoStep === "detail") { setScreenIdx(1); timerRef.current = setTimeout(() => setDemoStep("reveal"), 1400); }
+    else if (demoStep === "reveal") { setScreenIdx(2); timerRef.current = setTimeout(() => setDemoStep("approve"), 1400); }
+    else if (demoStep === "approve") { dispatch({ type: "DEAL_ACTION", id: "WG-10482", kind: "approve" }); timerRef.current = setTimeout(() => setDemoStep("fulfill"), 3 * 460 + 1300); }
+    else if (demoStep === "fulfill") { timerRef.current = setTimeout(() => setDemoStep("done"), 800); }
+    else if (demoStep === "done") { setView(-1); timerRef.current = setTimeout(() => setDemoStep(null), 10); }
+    return () => clearTimeout(timerRef.current);
+  }, [demoStep]);
+
+  const isAgent = view >= 0;
+  const meta = isAgent ? AGENT_META[view] : null;
+  const screenLabels = isAgent ? AGENT_SCREEN_LABELS[view] : [];
+  const deal10482 = state.deals.find((d) => d.id === "WG-10482");
+
+  let content = null;
+  if (view === -1) content = <Overview state={state} goTo={goTo} demoActive={!!demoStep} onRunDemo={() => setDemoStep("select")} />;
+  else if (view === -2) content = <ApprovalCenter approvals={state.approvals} goTo={goTo} />;
+  else if (view === -3) content = <AuditTrail audit={state.audit} />;
+  else if (view === 0) {
+    content = screenIdx === 0 ? <A1Screen1 deals={state.deals} runId={state.runTriggers.a1} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a1" })} onDone={() => dispatch({ type: "MARK_DEAL_ANALYZED", id: "WG-10482" })} />
+      : screenIdx === 1 ? <A1Screen2 deal={deal10482} />
+      : <A1Screen3 deal={deal10482} dispatch={dispatch} fulfillRunId={state.runTriggers.a1fulfill} />;
+  } else if (view === 1) {
+    content = screenIdx === 0 ? <A2Screen1 opps={state.opps} /> : screenIdx === 1 ? <A2Screen2 opps={state.opps} /> : <A2Screen3 opps={state.opps} dispatch={dispatch} />;
+  } else if (view === 2) {
+    const analyzed = !!state.analyzedAccounts["Meridian Health Systems"];
+    content = screenIdx === 0 ? <A3Screen1 analyzed={analyzed} runId={state.runTriggers.a3} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a3" })} onDone={() => dispatch({ type: "MARK_ACCOUNT_ANALYZED", account: "Meridian Health Systems" })} />
+      : screenIdx === 1 ? <A3Screen2 analyzed={analyzed} />
+      : <A3Screen3 analyzed={analyzed} dispatch={dispatch} done={state.audit.some((e) => e.record === "Meridian Health Systems" && e.event === "Task Created")} />;
+  } else if (view === 3) {
+    content = screenIdx === 0 ? <A4Screen1 renewals={state.renewals} /> : screenIdx === 1 ? <A4Screen2 renewals={state.renewals} /> : <A4Screen3 renewals={state.renewals} dispatch={dispatch} />;
+  } else if (view === 4) {
+    content = screenIdx === 0 ? <A5Screen1 />
+      : screenIdx === 1 ? <A5Screen2 applications={state.applications} runId={state.runTriggers.a5} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a5" })} onDone={() => dispatch({ type: "MARK_APP_ANALYZED", id: "APP-302" })} />
+      : <A5Screen3 applications={state.applications} dispatch={dispatch} />;
+  } else if (view === 5) {
+    content = screenIdx === 0 ? <A6Screen1 upsells={state.upsells} />
+      : screenIdx === 1 ? <A6Screen2 upsells={state.upsells} runId={state.runTriggers.a6} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a6" })} onDone={() => dispatch({ type: "MARK_UPSELL_ANALYZED", id: "UP-501" })} />
+      : <A6Screen3 upsells={state.upsells} dispatch={dispatch} />;
+  } else if (view === 6) {
+    content = screenIdx === 0 ? <A7Screen1 reps={state.reps} runId={state.runTriggers.a7} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a7" })} onDone={() => dispatch({ type: "MARK_REP_ANALYZED", id: "REP-04" })} />
+      : screenIdx === 1 ? <A7Screen2 reps={state.reps} /> : <A7Screen3 reps={state.reps} dispatch={dispatch} />;
+  }
+
+  return (
+    <DetailContext.Provider value={openDetail}>
+    <div className="w-full min-h-screen flex" style={{ background: "#F6F7FB", fontFamily: "'Inter', sans-serif" }}>
+      <style>{FONT_IMPORT}{`@keyframes slideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
+      <DetailModal detail={detail} state={state} onClose={() => setDetail(null)} goTo={goTo} />
+      <aside className="w-64 shrink-0 flex flex-col" style={{ background: "#12172B" }}>
+        <div className="px-5 py-5 border-b" style={{ borderColor: "#242A45" }}>
+          <div className="text-white font-bold text-[15px] leading-tight tracking-tight" style={{ fontFamily: DISPLAY }}>AI Sales &amp; Operations<br />Command Center</div>
+          <div className="text-[11px] text-[#8A90C0] mt-1">CRM → Ops → Finance → ERP → PRM → AM</div>
+        </div>
+        <nav className="flex-1 overflow-y-auto py-3 px-2">
+          <button onClick={() => goTo(-1)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -1 ? "#4F46E5" : "transparent" }}><LayoutGrid size={16} color={view === -1 ? "#fff" : "#9AA0C0"} /><span className="text-[13px] font-medium" style={{ color: view === -1 ? "#fff" : "#C7CAE0" }}>Overview</span></button>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C6290] px-3 pt-3 pb-1.5">Agents</div>
+          {AGENT_META.map((a, i) => {
+            const Icon = a.icon; const on = view === i; const h = agentHealth(state).find((x) => x.key === a.key);
+            return (
+              <button key={a.key} onClick={() => goTo(i)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: on ? "#4F46E5" : "transparent" }}>
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: h.waiting > 0 ? "#F59E0B" : "#059669" }} />
+                <Icon size={16} color={on ? "#fff" : "#9AA0C0"} />
+                <div className="flex-1 min-w-0"><div className="text-[13px] font-medium truncate" style={{ color: on ? "#fff" : "#C7CAE0" }}>{a.name}</div></div>
+                {!on && h.waiting > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "#F59E0B", color: "#12172B" }}>{h.waiting}</span>}
+              </button>
+            );
+          })}
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C6290] px-3 pt-3 pb-1.5">Operations</div>
+          <button onClick={() => goTo(-2)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -2 ? "#4F46E5" : "transparent" }}><ClipboardList size={16} color={view === -2 ? "#fff" : "#9AA0C0"} /><span className="text-[13px] font-medium flex-1" style={{ color: view === -2 ? "#fff" : "#C7CAE0" }}>Approvals</span>{state.approvals.length > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "#F59E0B", color: "#12172B" }}>{state.approvals.length}</span>}</button>
+          <button onClick={() => goTo(-3)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -3 ? "#4F46E5" : "transparent" }}><History size={16} color={view === -3 ? "#fff" : "#9AA0C0"} /><span className="text-[13px] font-medium" style={{ color: view === -3 ? "#fff" : "#C7CAE0" }}>Audit Trail</span></button>
+        </nav>
+        <div className="px-5 py-4 border-t text-[11px] text-[#6D72A0]" style={{ borderColor: "#242A45" }}>7 agents · 1 operating layer</div>
+      </aside>
+      <main className="flex-1 min-w-0 flex flex-col">
+        <div className="px-8 py-3 bg-white border-b border-[#E7E8F0] flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-[#8A90A6]"><span className="px-2 py-0.5 rounded-md bg-[#F0F1F6] font-semibold text-[#5B5F73]">Environment: Demo</span><span className="flex items-center gap-1"><Activity size={12} color="#059669" /> 7/7 Agents Active</span><span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#059669]" /> System Healthy</span></div>
+          <div className="flex items-center gap-4">
+            <button onClick={() => goTo(-2)} className="relative"><Bell size={16} color="#5B5F73" />{state.approvals.length > 0 && <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-[#DC2626] text-white text-[9px] flex items-center justify-center font-bold">{state.approvals.length}</span>}</button>
+            <div className="w-7 h-7 rounded-full bg-[#4F46E5] text-white text-xs font-bold flex items-center justify-center">YO</div>
+          </div>
+        </div>
+        {isAgent && (
+          <div className="px-8 pt-6 pb-4 bg-white border-b border-[#E7E8F0]">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <div className="flex items-center gap-2 text-xs text-[#9599AC] mb-1"><Mono>UC-{String(view + 1).padStart(2, "0")}</Mono><span>·</span><span className={meta.priority === "High" ? "text-[#B45309] font-semibold" : "text-[#4F46E5] font-semibold"}>{meta.priority} priority</span><span>·</span><span>{meta.complexity} complexity</span></div>
+                <h1 className="text-xl font-bold text-[#12172B]" style={{ fontFamily: DISPLAY }}>{meta.name}</h1>
+                <p className="text-sm text-[#6B7280] mt-1 max-w-2xl">{meta.trigger}</p>
+              </div>
+              <HitlBadge hitl={meta.hitl} />
+            </div>
+            <SystemsFlow systems={meta.systems} />
+          </div>
+        )}
+        {isAgent && (
+          <div className="px-8 pt-4 bg-white border-b border-[#E7E8F0] flex gap-1">
+            {screenLabels.map((label, i) => (
+              <button key={label} onClick={() => setScreenIdx(i)} className="px-4 py-2.5 text-sm font-medium relative" style={{ color: i === screenIdx ? "#4F46E5" : "#8A90A6" }}>
+                <span className="mr-1.5 text-[11px] font-mono text-[#B7BACC]">{i + 1}</span>{label}
+                {i === screenIdx && <div className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full" style={{ background: "#4F46E5" }} />}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto p-8">{content}</div>
+      </main>
+    </div>
+    </DetailContext.Provider>
+  );
+}
