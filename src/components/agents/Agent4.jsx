@@ -20,7 +20,7 @@ export function A4Screen1({ renewals }) {
         { label: "Due in 30–60 days", value: String(renewals.filter((r) => r.window !== "90-day").length) },
       ]} />
       <SectionLabel>Renewal Command Center</SectionLabel>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {Object.entries(windows).map(([w, cards]) => (
           <div key={w}>
             <div className="text-xs font-semibold text-[#8A90A6] mb-2 uppercase">{w} window</div>
@@ -46,7 +46,7 @@ export function A4Screen2({ renewals }) {
         <div><div className="text-xs text-[#9599AC] mb-1"><Mono>{r.id}</Mono> · <Field kind="account" id={r.account}>{r.account}</Field></div><div className="text-lg font-bold text-[#12172B]" style={{ fontFamily: DISPLAY }}>Renewal Risk Detail</div></div>
         <div className="text-right"><div className="text-3xl font-bold" style={{ color: "#DC2626", fontFamily: DISPLAY }}>{r.riskScore}<span className="text-base text-[#B7BACC]">/100</span></div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold">Renewal Risk Score</div></div>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-5 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 text-sm">
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">ARR</div><div className="font-medium">${r.arr.toLocaleString()}</div></div>
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Renewal date</div><div className="font-medium">{r.closeDate}</div></div>
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Owner (AM)</div><div className="font-medium"><Field kind="rep" id={r.owner}>{r.owner}</Field></div></div>

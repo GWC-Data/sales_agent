@@ -50,7 +50,7 @@ export function SectionLabel({ children, right }) {
 }
 export function MetricRow({ metrics }) {
   return (
-    <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: `repeat(${metrics.length}, minmax(0,1fr))` }}>
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
       {metrics.map((m) => (
         <Card key={m.label} className="p-4">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A90A6] mb-1">{m.label}</div>

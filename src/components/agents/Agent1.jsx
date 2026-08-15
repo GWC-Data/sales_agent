@@ -47,7 +47,7 @@ export function A1Screen2({ deal }) {
         <div><div className="text-xs text-[#9599AC] mb-1"><Mono>{deal.id}</Mono> · <Field kind="account" id={deal.account}>{deal.account}</Field></div><div className="text-lg font-bold text-[#12172B]" style={{ fontFamily: DISPLAY }}>Deal Detail</div></div>
         <Pill tone={deal.status}>{STATUS[deal.status].label}</Pill>
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-5 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 text-sm">
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Customer / Address</div><div className="font-medium">{deal.account}</div><div className="text-[#8A90A6]">{deal.address}, {deal.country}</div></div>
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Contract window</div><div className="font-medium">{deal.startDate} — {deal.endDate}</div></div>
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Term</div><div className="font-medium">{deal.term}</div></div>
@@ -57,7 +57,7 @@ export function A1Screen2({ deal }) {
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Discount</div><div className="font-medium">{deal.discount}%</div></div>
       </div>
       <SectionLabel>Cross-System Capability Check</SectionLabel>
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <Card className="p-3"><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">CRM capability</div><Cap ok={deal.crmOk} /></Card>
         <Card className="p-3"><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">ERP / Billing capability</div><Cap ok={deal.erpOk} /></Card>
         <Card className="p-3"><div className="text-[11px] text-[#8A90A6] uppercase font-semibold mb-1">Provisioning capability</div><Cap ok={deal.provisioningOk} /></Card>

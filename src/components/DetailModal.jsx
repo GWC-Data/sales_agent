@@ -19,7 +19,7 @@ export function DetailModal({ detail, state, onClose, goTo }) {
     const owner = repByName(state.reps, a.owner);
     body = (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DetailRow label="ARR" value={`$${a.arr.toLocaleString()}`} />
           <DetailRow label="Customer since" value={a.since} />
           <DetailRow label="Contract term" value={a.term} />
@@ -54,7 +54,7 @@ export function DetailModal({ detail, state, onClose, goTo }) {
     const linkedDeals = state.deals.filter((d) => d.rep === r.name);
     body = (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DetailRow label="Pipeline" value={r.pipeline} />
           <DetailRow label="Conversion" value={`${r.conversion}%`} />
           <DetailRow label="Target" value={`${r.target}%`} />
@@ -75,7 +75,7 @@ export function DetailModal({ detail, state, onClose, goTo }) {
     subtitle = "Deal";
     body = (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DetailRow label="Account" value={<Field kind="account" id={d.account}>{d.account}</Field>} />
           <DetailRow label="Rep" value={<Field kind="rep" id={repByName(state.reps, d.rep)?.id}>{d.rep} ({d.repRole})</Field>} />
           <DetailRow label="Product" value={<Field kind="product" id={d.product.split(" + ")[0]}>{d.product}</Field>} />
@@ -153,7 +153,7 @@ export function DetailModal({ detail, state, onClose, goTo }) {
         <DetailRow label="Confidence" value={`${a.confidence}%`} />
         <DetailRow label="Proposed tier" value={a.tier} />
         <DetailRow label="Status" value={<Pill tone={a.status}>{STATUS[a.status].label}</Pill>} />
-        <div className="grid grid-cols-2 gap-3">{Object.entries(a.fields).map(([k, v]) => <DetailRow key={k} label={k} value={v} />)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{Object.entries(a.fields).map(([k, v]) => <DetailRow key={k} label={k} value={v} />)}</div>
       </div>
     );
     gotoTarget = { agent: 4, screen: 1 };

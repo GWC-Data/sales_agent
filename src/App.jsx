@@ -1,5 +1,5 @@
 import React, { useReducer, useState, useEffect, useRef } from "react";
-import { Bell, Activity, ClipboardList, History, LayoutGrid } from "lucide-react";
+import { ClipboardList, History, LayoutGrid, Menu, PinOff } from "lucide-react";
 import { FONT_IMPORT, DISPLAY } from "./lib/constants";
 import { AGENT_META, AGENT_SCREEN_LABELS } from "./lib/seedData";
 import { initialState, reducer } from "./state/reducer";
@@ -8,6 +8,7 @@ import { Overview } from "./components/Overview";
 import { ApprovalCenter } from "./components/ApprovalCenter";
 import { AuditTrail } from "./components/AuditTrail";
 import { DetailModal } from "./components/DetailModal";
+import sidebarBg from "./assets/sidebar-bg.png";
 import { A1Screen1, A1Screen2, A1Screen3 } from "./components/agents/Agent1";
 import { A2Screen1, A2Screen2, A2Screen3 } from "./components/agents/Agent2";
 import { A3Screen1, A3Screen2, A3Screen3 } from "./components/agents/Agent3";
@@ -25,6 +26,7 @@ export default function App() {
   const [screenIdx, setScreenIdx] = useState(0);
   const [demoStep, setDemoStep] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
   const timerRef = useRef(null);
 
   const goTo = (agentIdx, screen = 0) => { setView(agentIdx); setScreenIdx(screen); };
@@ -42,6 +44,14 @@ export default function App() {
     else if (demoStep === "done") { setView(-1); timerRef.current = setTimeout(() => setDemoStep(null), 10); }
     return () => clearTimeout(timerRef.current);
   }, [demoStep]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const onChange = () => setCollapsed(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const isAgent = view >= 0;
   const meta = isAgent ? AGENT_META[view] : null;
@@ -80,44 +90,42 @@ export default function App() {
 
   return (
     <DetailContext.Provider value={openDetail}>
-    <div className="w-full min-h-screen flex" style={{ background: "#F6F7FB", fontFamily: "'Inter', sans-serif" }}>
+    <div className="w-full h-screen overflow-hidden" style={{ background: "#F6F7FB", fontFamily: "'Inter', sans-serif" }}>
       <style>{FONT_IMPORT}{`@keyframes slideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
       <DetailModal detail={detail} state={state} onClose={() => setDetail(null)} goTo={goTo} />
-      <aside className="w-64 shrink-0 flex flex-col" style={{ background: "#12172B" }}>
-        <div className="px-5 py-5 border-b" style={{ borderColor: "#242A45" }}>
-          <div className="text-white font-bold text-[15px] leading-tight tracking-tight" style={{ fontFamily: DISPLAY }}>AI Sales &amp; Operations<br />Command Center</div>
-          <div className="text-[11px] text-[#8A90C0] mt-1">CRM → Ops → Finance → ERP → PRM → AM</div>
+      <div className="flex p-2 sm:p-4 gap-2 sm:gap-4" style={{ width: "125%", height: "125%", transform: "scale(0.8)", transformOrigin: "top left" }}>
+      <aside className="shrink-0 flex flex-col rounded-xl shadow-xl overflow-hidden relative" style={{ background: "#12172B", width: collapsed ? "5rem" : "340px" }}>
+        <div className="px-3 py-4 border-b flex items-center justify-center" style={{ borderColor: "#242A45" }}>
+          {!collapsed && <div className="flex-1 min-w-0 text-white font-bold text-[15px] leading-tight tracking-tight" style={{ fontFamily: DISPLAY }}>Sales Channel Ops</div>}
+          <button onClick={() => setCollapsed(!collapsed)} className="shrink-0 cursor-pointer text-[#9AA0C0] hover:text-white transition-colors" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>{collapsed ? <Menu size={20} /> : <PinOff size={20} />}</button>
         </div>
-        <nav className="flex-1 overflow-y-auto py-3 px-2">
-          <button onClick={() => goTo(-1)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -1 ? "#4F46E5" : "transparent" }}><LayoutGrid size={16} color={view === -1 ? "#fff" : "#9AA0C0"} /><span className="text-[13px] font-medium" style={{ color: view === -1 ? "#fff" : "#C7CAE0" }}>Overview</span></button>
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C6290] px-3 pt-3 pb-1.5">Agents</div>
+        <nav className="flex-1 py-3 px-2">
+          <button onClick={() => goTo(-1)} className="w-full cursor-pointer flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -1 ? "linear-gradient(135deg,#4F46E5,#6D28D9)" : "transparent", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Overview" : undefined}><LayoutGrid size={collapsed ? 20 : 16} color={view === -1 ? "#fff" : "#9AA0C0"} />{!collapsed && <span className="text-[13px] font-medium" style={{ color: view === -1 ? "#fff" : "#C7CAE0" }}>Overview</span>}</button>
+          {!collapsed && <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C6290] px-3 pt-3 pb-1.5">Agents</div>}
           {AGENT_META.map((a, i) => {
             const Icon = a.icon; const on = view === i; const h = agentHealth(state).find((x) => x.key === a.key);
+            const waiting = h.waiting > 0;
+            const iconColor = on ? (waiting ? "#FDE68A" : "#BBF7D0") : (waiting ? "#F59E0B" : "#34D399");
             return (
-              <button key={a.key} onClick={() => goTo(i)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: on ? "#4F46E5" : "transparent" }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: h.waiting > 0 ? "#F59E0B" : "#059669" }} />
-                <Icon size={16} color={on ? "#fff" : "#9AA0C0"} />
-                <div className="flex-1 min-w-0"><div className="text-[13px] font-medium truncate" style={{ color: on ? "#fff" : "#C7CAE0" }}>{a.name}</div></div>
-                {!on && h.waiting > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "#F59E0B", color: "#12172B" }}>{h.waiting}</span>}
+              <button key={a.key} onClick={() => goTo(i)} className="w-full cursor-pointer flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: on ? "linear-gradient(135deg,#4F46E5,#6D28D9)" : "transparent", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? a.name : undefined}>
+                <Icon size={collapsed ? 20 : 16} color={iconColor} />
+                {!collapsed && <div className="flex-1 min-w-0"><div className="text-[13px] font-medium truncate" style={{ color: on ? "#fff" : "#C7CAE0" }}>{a.name}</div></div>}
               </button>
             );
           })}
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C6290] px-3 pt-3 pb-1.5">Operations</div>
-          <button onClick={() => goTo(-2)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -2 ? "#4F46E5" : "transparent" }}><ClipboardList size={16} color={view === -2 ? "#fff" : "#9AA0C0"} /><span className="text-[13px] font-medium flex-1" style={{ color: view === -2 ? "#fff" : "#C7CAE0" }}>Approvals</span>{state.approvals.length > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full" style={{ background: "#F59E0B", color: "#12172B" }}>{state.approvals.length}</span>}</button>
-          <button onClick={() => goTo(-3)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -3 ? "#4F46E5" : "transparent" }}><History size={16} color={view === -3 ? "#fff" : "#9AA0C0"} /><span className="text-[13px] font-medium" style={{ color: view === -3 ? "#fff" : "#C7CAE0" }}>Audit Trail</span></button>
+          {collapsed && <div className="border-t border-[#242A45] my-2" />}
+          {!collapsed && <div className="text-[10px] font-bold uppercase tracking-wider text-[#5C6290] px-3 pt-3 pb-1.5">Operations</div>}
+          <button onClick={() => goTo(-2)} className="w-full cursor-pointer flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -2 ? "linear-gradient(135deg,#4F46E5,#6D28D9)" : "transparent", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Approvals" : undefined}><ClipboardList size={collapsed ? 20 : 16} color={view === -2 ? "#E0E4FF" : "#9AA0C0"} />{!collapsed && <span className="text-[13px] font-medium flex-1" style={{ color: view === -2 ? "#fff" : "#C7CAE0" }}>Approvals</span>}</button>
+          <button onClick={() => goTo(-3)} className="w-full cursor-pointer flex items-center gap-3 px-3 py-2.5 rounded-lg mb-1 text-left" style={{ background: view === -3 ? "linear-gradient(135deg,#4F46E5,#6D28D9)" : "transparent", justifyContent: collapsed ? "center" : "flex-start" }} title={collapsed ? "Audit Trail" : undefined}><History size={collapsed ? 20 : 16} color={view === -3 ? "#E0E4FF" : "#9AA0C0"} />{!collapsed && <span className="text-[13px] font-medium" style={{ color: view === -3 ? "#fff" : "#C7CAE0" }}>Audit Trail</span>}</button>
         </nav>
-        <div className="px-5 py-4 border-t text-[11px] text-[#6D72A0]" style={{ borderColor: "#242A45" }}>7 agents · 1 operating layer</div>
+        {!collapsed && (
+        <div className="relative z-10 px-5 py-4 border-t text-[11px] text-[#8A90C0]" style={{ borderColor: "#242A45" }}>7 agents · 1 operating layer</div>
+        )}
+        <img src={sidebarBg} alt="" className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[340px] h-[300px] object-cover object-bottom max-w-none pointer-events-none select-none" style={{ opacity: 0.8, maskImage: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.4) 55%, rgba(0,0,0,0) 100%)", WebkitMaskImage: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.4) 55%, rgba(0,0,0,0) 100%)" }} />
       </aside>
-      <main className="flex-1 min-w-0 flex flex-col">
-        <div className="px-8 py-3 bg-white border-b border-[#E7E8F0] flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-[#8A90A6]"><span className="px-2 py-0.5 rounded-md bg-[#F0F1F6] font-semibold text-[#5B5F73]">Environment: Demo</span><span className="flex items-center gap-1"><Activity size={12} color="#059669" /> 7/7 Agents Active</span><span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#059669]" /> System Healthy</span></div>
-          <div className="flex items-center gap-4">
-            <button onClick={() => goTo(-2)} className="relative"><Bell size={16} color="#5B5F73" />{state.approvals.length > 0 && <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-[#DC2626] text-white text-[9px] flex items-center justify-center font-bold">{state.approvals.length}</span>}</button>
-            <div className="w-7 h-7 rounded-full bg-[#4F46E5] text-white text-xs font-bold flex items-center justify-center">YO</div>
-          </div>
-        </div>
+      <main className="flex-1 min-w-0 flex flex-col rounded-2xl overflow-hidden">
         {isAgent && (
-          <div className="px-8 pt-6 pb-4 bg-white border-b border-[#E7E8F0]">
+          <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4 bg-white border-b border-[#E7E8F0]">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <div className="flex items-center gap-2 text-xs text-[#9599AC] mb-1"><Mono>UC-{String(view + 1).padStart(2, "0")}</Mono><span>·</span><span className={meta.priority === "High" ? "text-[#B45309] font-semibold" : "text-[#4F46E5] font-semibold"}>{meta.priority} priority</span><span>·</span><span>{meta.complexity} complexity</span></div>
@@ -130,7 +138,7 @@ export default function App() {
           </div>
         )}
         {isAgent && (
-          <div className="px-8 pt-4 bg-white border-b border-[#E7E8F0] flex gap-1">
+          <div className="px-4 sm:px-6 lg:px-8 pt-4 bg-white border-b border-[#E7E8F0] flex gap-1 overflow-x-auto">
             {screenLabels.map((label, i) => (
               <button key={label} onClick={() => setScreenIdx(i)} className="px-4 py-2.5 text-sm font-medium relative" style={{ color: i === screenIdx ? "#4F46E5" : "#8A90A6" }}>
                 <span className="mr-1.5 text-[11px] font-mono text-[#B7BACC]">{i + 1}</span>{label}
@@ -139,8 +147,9 @@ export default function App() {
             ))}
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-8">{content}</div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{content}</div>
       </main>
+      </div>
     </div>
     </DetailContext.Provider>
   );

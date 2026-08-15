@@ -21,7 +21,7 @@ export function A3Screen1({ analyzed, runId, onRun, onDone }) {
       <ExecutionTrace triggerKey={runId} steps={steps} onDone={onDone} doneLabel="Briefing ready" />
       {analyzed && (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <Card className="p-4"><SectionLabel>Invoice / Payment</SectionLabel><Pill tone="escalated">{acct.invoiceStatus}</Pill><div className="text-xs text-[#8A90A6] mt-2">DSO {acct.dso} days</div></Card>
             <Card className="p-4"><SectionLabel>Usage trend (90d)</SectionLabel><Sparkline data={[45, 48, 44, 52, 58, 61, 65]} /></Card>
             <Card className="p-4"><SectionLabel>Open tickets</SectionLabel><div className="text-2xl font-bold" style={{ fontFamily: DISPLAY }}>{acct.tickets.length}</div><div className="text-xs text-[#8A90A6]"><Field kind="ticket" id={`Meridian Health Systems::${acct.tickets[0].id}`}>{acct.tickets[0].sev} — {acct.tickets[0].desc}</Field></div></Card>

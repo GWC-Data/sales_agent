@@ -28,7 +28,7 @@ export function A6Screen2({ upsells, runId, onRun, onDone }) {
       <SectionLabel right={!u.analyzed && <RunAgentButton onClick={onRun} />}>Account Product Gap — <Field kind="account" id={u.account}>{u.account}</Field></SectionLabel>
       <ExecutionTrace triggerKey={runId} steps={steps} onDone={onDone} pendingLabel="Waiting for AM approval to send outreach" />
       <Card className="p-5 max-w-xl">
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {FULL_CATALOG.map((c) => (
             <div key={c} className="flex items-center gap-2 text-sm">
               {u.owned.includes(c) ? <Check size={14} color="#059669" /> : <CircleDot size={14} color="#DCDEE8" />}
@@ -50,7 +50,7 @@ export function A6Screen3({ upsells, dispatch }) {
   return (
     <Card className="p-5 max-w-xl">
       <SectionLabel>Opportunity + Outreach — <Field kind="account" id={u.account}>{u.account}</Field></SectionLabel>
-      <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold">Opportunity value</div><div className="font-medium">${u.uplift.toLocaleString()}</div></div>
         <div><div className="text-[11px] text-[#8A90A6] uppercase font-semibold">Product</div><div className="font-medium">{u.recommended}</div></div>
       </div>
