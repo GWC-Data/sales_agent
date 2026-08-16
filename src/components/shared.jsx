@@ -9,6 +9,16 @@ export function norm(s) {
   return (s || "").toString().trim().toLowerCase();
 }
 
+// Centered spinner for a screen/section whose content isn't ready yet —
+// use instead of leaving the area blank while data loads.
+export function PageLoader({ label = "Loading…" }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-24 text-[#8A90A6]">
+      <div className="w-8 h-8 rounded-full border-2 border-[#DCDEE8] border-t-[#4F46E5] animate-spin" />
+      <div className="text-sm">{label}</div>
+    </div>
+  );
+}
 export function Pill({ tone = "pending", children }) {
   const s = STATUS[tone] || STATUS.pending;
   return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{ color: s.fg, background: s.bg, border: `1px solid ${s.ring}` }}>{children}</span>;
