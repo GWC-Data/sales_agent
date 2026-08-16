@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import { DISPLAY } from "../../lib/constants";
 import {
-  fetchDealQueue, fetchDealDetail, submitDealDecision, escalateDealViaEmail,
+  fetchDealQueue, fetchDealDetail, submitDealDecision, previewEscalationEmail, escalateDealViaEmail,
 } from "../../lib/agent1";
 import { useDealQueue, useDealAuditLog } from "../../hooks/useAgent1";
 import { Pill, Mono, Card, Field, SectionLabel, MetricRow, Table, Dropdown, ActionButton, PageLoader } from "../shared";
@@ -237,13 +237,14 @@ export function A1Screen3({ initialDealId, onReady, onActed }) {
   const [toEmail, setToEmail] = useState("");
   const [decisionResult, setDecisionResult] = useState(null);
   const [decisionError, setDecisionError] = useState(null);
+  const [escalatePreview, setEscalatePreview] = useState(null); // { subject, body } | null
   const [escalateResult, setEscalateResult] = useState(null);
   const [escalateError, setEscalateError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setDecisionResult(null); setDecisionError(null);
-    setEscalateResult(null); setEscalateError(null);
+    setEscalatePreview(null); setEscalateResult(null); setEscalateError(null); setToEmail("");
   }, [dealId]);
 
   async function decide(decision) {
@@ -263,16 +264,29 @@ export function A1Screen3({ initialDealId, onReady, onActed }) {
     }
   }
 
-  async function escalate() {
+  async function openEscalatePreview() {
     if (!reviewer.trim()) { setEscalateError("Enter your name as reviewer first."); return; }
+    setSubmitting(true);
+    setEscalateError(null);
+    try {
+      setEscalatePreview(await previewEscalationEmail(dealId, { reviewer, comment }));
+    } catch (err) {
+      setEscalateError(err?.message || "Failed to build email preview.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function confirmEscalate() {
     if (!toEmail.trim() || !toEmail.includes("@")) { setEscalateError("Enter a valid recipient email address."); return; }
     setSubmitting(true);
     setEscalateError(null);
     try {
-      const res = await escalateDealViaEmail(dealId, { to_email: toEmail, reviewer, comment });
+      const res = await escalateDealViaEmail(dealId, { to_email: toEmail, reviewer, comment, body: escalatePreview.body });
       const msg = `Emailed ${res.emailed_to} — "${res.email_subject}". This deal has left the queue.`;
       setEscalateResult(msg);
       onActed?.(msg);
+      setEscalatePreview(null);
       reload();
     } catch (err) {
       setEscalateError(err?.message || "Failed to send escalation email.");
@@ -312,15 +326,42 @@ export function A1Screen3({ initialDealId, onReady, onActed }) {
               {decisionResult && <div className="text-sm text-[#059669] font-medium mb-3">{decisionResult}</div>}
 
               <div className="mt-5 pt-4 border-t border-[#EDEEF4]">
-                <div className="text-xs font-semibold text-[#8A90A6] mb-1">Escalate to (email address)</div>
-                <input value={toEmail} onChange={(e) => setToEmail(e.target.value)} placeholder="erp-integration@company.com" className="w-full border border-[#DCDEE8] rounded-lg px-3 py-2 text-sm mb-2" />
-                {escalateError && <div className="text-sm text-[#DC2626] mb-2">{escalateError}</div>}
-                <ActionButton tone="danger" icon={X} onClick={escalate} disabled={submitting}>Escalate to ERP-Integration (sends email)</ActionButton>
+                {escalateError && !escalatePreview && <div className="text-sm text-[#DC2626] mb-2">{escalateError}</div>}
+                <ActionButton tone="danger" icon={X} onClick={openEscalatePreview} disabled={submitting}>
+                  {submitting && !escalatePreview ? "Building preview…" : "Escalate to ERP-Integration (sends email)"}
+                </ActionButton>
                 {escalateResult && <div className="text-sm text-[#059669] font-medium mt-3">{escalateResult}</div>}
               </div>
             </>
           )}
         </Card>
+      )}
+
+      {escalatePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-[#0F1424]/40 backdrop-blur-[1px]" onClick={() => !submitting && setEscalatePreview(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto">
+            <div className="text-lg font-bold text-[#12172B] mb-3" style={{ fontFamily: DISPLAY }}>Review before sending</div>
+            <div className="text-xs font-semibold text-[#8A90A6] uppercase mb-1">Subject</div>
+            <input value={escalatePreview.subject} readOnly className="w-full border border-[#DCDEE8] rounded-lg px-3 py-2 text-sm mb-3 bg-[#FAFAFD]" />
+            <div className="text-xs font-semibold text-[#8A90A6] uppercase mb-1">Body</div>
+            <textarea
+              value={escalatePreview.body}
+              onChange={(e) => setEscalatePreview((p) => ({ ...p, body: e.target.value }))}
+              disabled={submitting}
+              rows={10}
+              className="w-full border border-[#DCDEE8] rounded-lg px-3 py-2 text-xs mb-3 focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/30 disabled:bg-[#FAFAFD]"
+              style={{ fontFamily: "monospace" }}
+            />
+            <div className="text-xs font-semibold text-[#8A90A6] uppercase mb-1">Recipient email address</div>
+            <input value={toEmail} onChange={(e) => setToEmail(e.target.value)} placeholder="erp-integration@company.com" className="w-full border border-[#DCDEE8] rounded-lg px-3 py-2 text-sm mb-2" />
+            {escalateError && <div className="text-sm text-[#DC2626] mb-2">{escalateError}</div>}
+            <div className="flex gap-2 mt-2">
+              <ActionButton tone="danger" icon={X} onClick={confirmEscalate} disabled={submitting}>{submitting ? "Sending…" : "Send email"}</ActionButton>
+              <ActionButton tone="ghost" onClick={() => setEscalatePreview(null)} disabled={submitting}>Cancel</ActionButton>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -13,6 +13,9 @@ export function fetchDealDetail(dealId) {
 export function submitDealDecision(dealId, body) {
   return http.post(`${AGENT1_BASE}/api/deals/${encodeURIComponent(dealId)}/decision`, body);
 }
+export function previewEscalationEmail(dealId, body) {
+  return http.post(`${AGENT1_BASE}/api/deals/${encodeURIComponent(dealId)}/escalate-email/preview`, body);
+}
 export function escalateDealViaEmail(dealId, body) {
   return http.post(`${AGENT1_BASE}/api/deals/${encodeURIComponent(dealId)}/escalate-email`, body);
 }
