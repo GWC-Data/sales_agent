@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef, useContext, createContext } from "react";
-import { AlertTriangle, Sparkles, ChevronRight, Play, Check, X, Clock } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import { AlertTriangle, Sparkles, ChevronRight, ChevronDown, Play, Check, X, Clock } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, CartesianGrid, Tooltip, Legend } from "recharts";
 import { STATUS, DISPLAY, MONO } from "../lib/constants";
+
+// Case/whitespace-insensitive match helper shared by anything reconciling
+// live API records (accounts, products, tickets) against a name/id.
+export function norm(s) {
+  return (s || "").toString().trim().toLowerCase();
+}
 
 export function Pill({ tone = "pending", children }) {
   const s = STATUS[tone] || STATUS.pending;
@@ -79,6 +85,51 @@ export function Table({ columns, rows, onRowClick, activeId }) {
     </Card>
   );
 }
+/* ---- Custom dropdown (replaces native <select> for inline, styled pickers) ---- */
+export function Dropdown({ value, options, onChange, placeholder = "Select…", disabled }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen((o) => !o)}
+        disabled={disabled}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[13px] font-semibold cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ color: "#4F46E5", background: "#EEF0FF", border: "1px solid #C7D2FE" }}
+      >
+        {selected ? selected.label : placeholder}
+        <ChevronDown size={13} />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 min-w-[220px] max-h-64 overflow-y-auto bg-white rounded-lg border border-[#E7E8F0] shadow-lg py-1">
+          {options.length === 0 && <div className="px-3 py-1.5 text-sm text-[#8A90A6]">No options.</div>}
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className="w-full text-left px-3 py-1.5 text-sm cursor-pointer hover:bg-[#F5F6FA] transition-colors"
+              style={{ color: o.value === value ? "#4F46E5" : "#12172B", fontWeight: o.value === value ? 600 : 400 }}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 export function ActionButton({ tone = "primary", icon: Icon, children, onClick, disabled }) {
   const tones = { primary: { bg: "#4F46E5", fg: "#fff", border: "#4F46E5" }, ghost: { bg: "#fff", fg: "#12172B", border: "#DCDEE8" }, danger: { bg: "#fff", fg: "#DC2626", border: "#F3D0D0" }, success: { bg: "#fff", fg: "#059669", border: "#BEEBD7" } };
   const t = tones[tone];
@@ -91,12 +142,26 @@ export function ActionButton({ tone = "primary", icon: Icon, children, onClick, 
 export function Sparkline({ data, color = "#4F46E5" }) {
   return <div style={{ width: 100, height: 30 }}><ResponsiveContainer width="100%" height="100%"><LineChart data={data.map((v) => ({ v }))}><YAxis hide domain={["dataMin - 2", "dataMax + 2"]} /><Line type="monotone" dataKey="v" stroke={color} strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div>;
 }
-export function HitlBadge({ hitl }) {
-  return hitl ? (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide" style={{ background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }}><AlertTriangle size={12} /> Human Approval Required</span>
-  ) : (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide" style={{ background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0" }}><Sparkles size={12} /> Autonomous Execution</span>
+/* ---- Multi-series trend chart (e.g. a metric vs. its target over periods) ---- */
+export function TrendChart({ data, lines, height = 220 }) {
+  return (
+    <div style={{ width: "100%", height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 5, right: 12, bottom: 5, left: -10 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#EDEEF4" />
+          <XAxis dataKey="period" tick={{ fontSize: 11, fill: "#8A90A6" }} />
+          <YAxis tick={{ fontSize: 11, fill: "#8A90A6" }} />
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E7E8F0" }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          {lines.map((l) => <Line key={l.key} type="monotone" dataKey={l.key} name={l.label} stroke={l.color} strokeWidth={2} dot={{ r: 3 }} />)}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
+}
+export function HitlBadge() {
+  return
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide" style={{ background: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0" }}><Sparkles size={12} /> Autonomous Execution</span>
 }
 export function SystemsFlow({ systems }) {
   return (
@@ -164,8 +229,17 @@ export function ExecutionTrace({ triggerKey, steps, onDone, pendingLabel, doneLa
     </div>
   );
 }
-export function RunAgentButton({ onClick, label = "Run Agent" }) {
-  return <button onClick={onClick} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold text-white mb-4 transition-transform active:scale-[0.97]" style={{ background: "#4F46E5" }}><Play size={13} fill="white" />{label}</button>;
+export function RunAgentButton({ onClick, label = "Run Agent", disabled }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold text-white mb-4 cursor-pointer transition-transform active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{ background: "#4F46E5" }}
+    >
+      <Play size={13} fill="white" />{label}
+    </button>
+  );
 }
 
 /* ---- Standardized human decision control ----

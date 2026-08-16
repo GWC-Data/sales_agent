@@ -2,51 +2,114 @@ import React from "react";
 import { ArrowRight, XCircle } from "lucide-react";
 import { DISPLAY, STATUS } from "../lib/constants";
 import { ACCOUNTS, PRODUCT_INFO, repByName } from "../lib/seedData";
-import { Pill, Field, SectionLabel, DetailRow, ActionButton, Sparkline } from "./shared";
+import { Pill, Field, SectionLabel, DetailRow, ActionButton, Sparkline, norm } from "./shared";
 
 /* =========================================================================
    DETAIL DRAWER — clicking any entity reference opens this
 ========================================================================= */
-export function DetailModal({ detail, state, onClose, goTo }) {
+const ACCOUNT_FIELD_LABELS = { arr: "ARR", dso: "DSO", am_owner_name: "Owner (AM)" };
+function humanizeAccountField(key) {
+  return ACCOUNT_FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function isOpenTicket(t) {
+  if (!t.status) return true;
+  const s = norm(t.status);
+  return !(s.includes("closed") || s.includes("resolved") || s.includes("done"));
+}
+function ticketPriorityTone(priority) {
+  const p = norm(priority);
+  if (p.includes("1") || p.includes("crit") || p.includes("urgent") || p === "high") return "high";
+  if (p.includes("2") || p === "medium" || p === "med") return "medium";
+  if (p.includes("3") || p === "low") return "low";
+  return "pending";
+}
+function ticketsForAccount(liveTickets, liveAccount) {
+  return (liveTickets || [])
+    .filter((t) => norm(t.account_id) === norm(liveAccount.account_id) || norm(t.account_name) === norm(liveAccount.account_name))
+    .filter(isOpenTicket);
+}
+
+export function DetailModal({ detail, state, onClose, goTo, liveProducts, liveAccounts, liveTickets }) {
   if (!detail) return null;
   const { kind, id } = detail;
   let title = id, subtitle = "", body = null, gotoTarget = null;
 
   if (kind === "account") {
-    const a = ACCOUNTS[id];
-    if (!a) return null;
+    const seedAccount = ACCOUNTS[id];
+    const liveAccount = (liveAccounts || []).find((a) => norm(a.account_name) === norm(id) || norm(a.account_id) === norm(id));
+    if (!seedAccount && !liveAccount) return null;
     subtitle = "Account";
-    const owner = repByName(state.reps, a.owner);
-    body = (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DetailRow label="ARR" value={`$${a.arr.toLocaleString()}`} />
-          <DetailRow label="Customer since" value={a.since} />
-          <DetailRow label="Contract term" value={a.term} />
-          <DetailRow label="Renewal date" value={a.renewal} />
-          <DetailRow label="Invoice status" value={a.invoiceStatus} />
-          <DetailRow label="DSO" value={`${a.dso} days`} />
-          <DetailRow label="Owner (AM)" value={owner ? <Field kind="rep" id={owner.id}>{a.owner}</Field> : a.owner} />
-          <DetailRow label="Sentiment" value={a.sentiment || "—"} />
+
+    if (seedAccount) {
+      const owner = repByName(state.reps, seedAccount.owner);
+      body = (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <DetailRow label="ARR" value={`$${seedAccount.arr.toLocaleString()}`} />
+            <DetailRow label="Customer since" value={seedAccount.since} />
+            <DetailRow label="Contract term" value={seedAccount.term} />
+            <DetailRow label="Renewal date" value={seedAccount.renewal} />
+            <DetailRow label="Invoice status" value={seedAccount.invoiceStatus} />
+            <DetailRow label="DSO" value={`${seedAccount.dso} days`} />
+            <DetailRow label="Owner (AM)" value={owner ? <Field kind="rep" id={owner.id}>{seedAccount.owner}</Field> : seedAccount.owner} />
+            <DetailRow label="Sentiment" value={seedAccount.sentiment || "—"} />
+          </div>
+          <div>
+            <SectionLabel>Products owned</SectionLabel>
+            <div className="flex flex-wrap gap-1.5">{seedAccount.products.map((p) => <span key={p} className="px-2 py-1 rounded-md text-xs bg-[#F0F1F6]"><Field kind="product" id={p}>{p}</Field></span>)}</div>
+          </div>
+          <div>
+            <SectionLabel>Open tickets</SectionLabel>
+            {seedAccount.tickets.length === 0 ? <div className="text-sm text-[#8A90A6]">None open.</div> : (
+              <div className="space-y-1.5">{seedAccount.tickets.map((t) => (
+                <div key={t.id} className="flex items-center gap-2 text-sm">
+                  <Pill tone={t.sev === "Sev-2" ? "escalated" : "pending"}>{t.sev}</Pill>
+                  <Field kind="ticket" id={`${id}::${t.id}`} mono>{t.id}</Field>
+                  <span className="text-[#8A90A6]">{t.desc}</span>
+                </div>
+              ))}</div>
+            )}
+          </div>
         </div>
-        <div>
-          <SectionLabel>Products owned</SectionLabel>
-          <div className="flex flex-wrap gap-1.5">{a.products.map((p) => <span key={p} className="px-2 py-1 rounded-md text-xs bg-[#F0F1F6]"><Field kind="product" id={p}>{p}</Field></span>)}</div>
-        </div>
-        <div>
-          <SectionLabel>Open tickets</SectionLabel>
-          {a.tickets.length === 0 ? <div className="text-sm text-[#8A90A6]">None open.</div> : (
-            <div className="space-y-1.5">{a.tickets.map((t) => (
-              <div key={t.id} className="flex items-center gap-2 text-sm">
-                <Pill tone={t.sev === "Sev-2" ? "escalated" : "pending"}>{t.sev}</Pill>
-                <Field kind="ticket" id={`${id}::${t.id}`} mono>{t.id}</Field>
-                <span className="text-[#8A90A6]">{t.desc}</span>
-              </div>
-            ))}</div>
+      );
+    } else {
+      const { account_id, account_name, products_owned, ...rest } = liveAccount;
+      const products = (products_owned || "").split(",").map((p) => p.trim()).filter(Boolean);
+      const extraFields = Object.entries(rest).filter(([, v]) => v !== undefined && v !== null && v !== "");
+      const openTickets = ticketsForAccount(liveTickets, liveAccount);
+      body = (
+        <div className="space-y-4">
+          {extraFields.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {extraFields.map(([k, v]) => <DetailRow key={k} label={humanizeAccountField(k)} value={String(v)} />)}
+            </div>
           )}
+          <div>
+            <SectionLabel>Products owned</SectionLabel>
+            {products.length === 0 ? <div className="text-sm text-[#8A90A6]">None on file.</div> : (
+              <div className="flex flex-wrap gap-1.5">{products.map((p) => <span key={p} className="px-2 py-1 rounded-md text-xs bg-[#F0F1F6]"><Field kind="product" id={p}>{p}</Field></span>)}</div>
+            )}
+          </div>
+          <div>
+            <SectionLabel>Open tickets</SectionLabel>
+            {openTickets.length === 0 ? <div className="text-sm text-[#8A90A6]">None open.</div> : (
+              <div className="space-y-1.5">{openTickets.map((t) => {
+                const ticketId = t.ticket_id || t.id;
+                const priority = t.priority || t.severity || t.sev;
+                return (
+                  <div key={ticketId} className="flex items-center gap-2 text-sm">
+                    {priority && <Pill tone={ticketPriorityTone(priority)}>{priority}</Pill>}
+                    <Field kind="ticket" id={`${id}::${ticketId}`} mono>{ticketId}</Field>
+                    <span className="text-[#8A90A6]">{t.subject || t.description || t.desc || ""}</span>
+                  </div>
+                );
+              })}</div>
+            )}
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
   } else if (kind === "rep") {
     const r = state.reps.find((x) => x.id === id || x.name === id);
     if (!r) return null;
@@ -90,26 +153,56 @@ export function DetailModal({ detail, state, onClose, goTo }) {
     );
     gotoTarget = { agent: 0, screen: 1 };
   } else if (kind === "ticket") {
-    const [accountName, ticketId] = id.split("::");
-    const a = ACCOUNTS[accountName]; const t = a && a.tickets.find((x) => x.id === ticketId);
-    if (!t) return null;
+    const [accountKey, ticketId] = id.split("::");
+    const seedAccountForTicket = ACCOUNTS[accountKey];
+    const seedTicket = seedAccountForTicket && seedAccountForTicket.tickets.find((x) => x.id === ticketId);
+    const liveAccountForTicket = !seedTicket && (liveAccounts || []).find((a) => norm(a.account_name) === norm(accountKey) || norm(a.account_id) === norm(accountKey));
+    const liveTicket = !seedTicket && liveAccountForTicket
+      && ticketsForAccount(liveTickets, liveAccountForTicket).find((t) => norm(t.ticket_id || t.id) === norm(ticketId));
+    if (!seedTicket && !liveTicket) return null;
     subtitle = "Support Ticket";
-    body = (
-      <div className="space-y-3">
-        <DetailRow label="Account" value={<Field kind="account" id={accountName}>{accountName}</Field>} />
-        <DetailRow label="Severity" value={<Pill tone={t.sev === "Sev-2" ? "escalated" : "pending"}>{t.sev}</Pill>} />
-        <DetailRow label="Description" value={t.desc || "No description on file."} />
-        <DetailRow label="Age" value={t.age} />
-      </div>
-    );
+
+    if (seedTicket) {
+      body = (
+        <div className="space-y-3">
+          <DetailRow label="Account" value={<Field kind="account" id={accountKey}>{accountKey}</Field>} />
+          <DetailRow label="Severity" value={<Pill tone={seedTicket.sev === "Sev-2" ? "escalated" : "pending"}>{seedTicket.sev}</Pill>} />
+          <DetailRow label="Description" value={seedTicket.desc || "No description on file."} />
+          <DetailRow label="Age" value={seedTicket.age} />
+        </div>
+      );
+    } else {
+      const priority = liveTicket.priority || liveTicket.severity || liveTicket.sev;
+      body = (
+        <div className="space-y-3">
+          <DetailRow label="Account" value={<Field kind="account" id={accountKey}>{accountKey}</Field>} />
+          {priority && <DetailRow label="Priority" value={<Pill tone={ticketPriorityTone(priority)}>{priority}</Pill>} />}
+          {liveTicket.status && <DetailRow label="Status" value={liveTicket.status} />}
+          <DetailRow label="Subject" value={liveTicket.subject || liveTicket.description || liveTicket.desc || "No description on file."} />
+          {liveTicket.product_area && <DetailRow label="Product area" value={liveTicket.product_area} />}
+        </div>
+      );
+    }
   } else if (kind === "product") {
-    const owners = Object.entries(ACCOUNTS).filter(([, a]) => a.products.includes(id)).map(([name]) => name);
     subtitle = "Product";
+    const liveMatch = (liveProducts || []).find((p) => norm(p.name || p.product_name) === norm(id));
+    const description = liveMatch
+      ? liveMatch.description || liveMatch.product_description || liveMatch.summary || "No description on file."
+      : PRODUCT_INFO[id] || "No description on file.";
+
+    const seedOwners = Object.entries(ACCOUNTS).filter(([, a]) => a.products.includes(id)).map(([name]) => name);
+    const liveOwners = (liveAccounts || [])
+      .filter((a) => (a.products_owned || "").split(",").map(norm).includes(norm(id)))
+      .map((a) => a.account_name || a.account_id);
+    const owners = Array.from(new Set([...seedOwners, ...liveOwners]));
+
     body = (
       <div className="space-y-4">
-        <div className="text-sm text-[#5B5F73]">{PRODUCT_INFO[id] || "No description on file."}</div>
+        <div className="text-sm text-[#5B5F73]">{description}</div>
         <div><SectionLabel>Accounts using this product</SectionLabel>
-          {owners.length === 0 ? <div className="text-sm text-[#8A90A6]">None yet.</div> : <div className="space-y-1">{owners.map((o) => <div key={o} className="text-sm"><Field kind="account" id={o}>{o}</Field></div>)}</div>}
+          {owners.length === 0 ? <div className="text-sm text-[#8A90A6]">None yet.</div> : (
+            <div className="space-y-1">{owners.map((o) => <div key={o} className="text-sm"><Field kind="account" id={o}>{o}</Field></div>)}</div>
+          )}
         </div>
       </div>
     );

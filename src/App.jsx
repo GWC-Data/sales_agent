@@ -4,6 +4,9 @@ import { FONT_IMPORT, DISPLAY } from "./lib/constants";
 import { AGENT_META, AGENT_SCREEN_LABELS } from "./lib/seedData";
 import { initialState, reducer } from "./state/reducer";
 import { DetailContext, Mono, HitlBadge, SystemsFlow, agentHealth } from "./components/shared";
+import { useProductCatalog } from "./hooks/useProductCatalog";
+import { useAccounts } from "./hooks/useAccounts";
+import { useTickets } from "./hooks/useTickets";
 import { Overview } from "./components/Overview";
 import { ApprovalCenter } from "./components/ApprovalCenter";
 import { AuditTrail } from "./components/AuditTrail";
@@ -27,7 +30,16 @@ export default function App() {
   const [demoStep, setDemoStep] = useState(null);
   const [detail, setDetail] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [agent6Result, setAgent6Result] = useState(null);
+  const [agent1DealId, setAgent1DealId] = useState(null);
+  const [agent3Context, setAgent3Context] = useState(null);
+  const [agent3Pending, setAgent3Pending] = useState([]);
+  const [agent3Submitted, setAgent3Submitted] = useState([]);
+  const [agent4RenewalId, setAgent4RenewalId] = useState(null);
   const timerRef = useRef(null);
+  const { products: liveProducts } = useProductCatalog();
+  const { accounts: liveAccounts } = useAccounts();
+  const { tickets: liveTickets } = useTickets();
 
   const goTo = (agentIdx, screen = 0) => { setView(agentIdx); setScreenIdx(screen); };
   const openDetail = (kind, id) => setDetail({ kind, id });
@@ -56,43 +68,48 @@ export default function App() {
   const isAgent = view >= 0;
   const meta = isAgent ? AGENT_META[view] : null;
   const screenLabels = isAgent ? AGENT_SCREEN_LABELS[view] : [];
-  const deal10482 = state.deals.find((d) => d.id === "WG-10482");
 
   let content = null;
   if (view === -1) content = <Overview state={state} goTo={goTo} demoActive={!!demoStep} onRunDemo={() => setDemoStep("select")} />;
   else if (view === -2) content = <ApprovalCenter approvals={state.approvals} goTo={goTo} />;
   else if (view === -3) content = <AuditTrail audit={state.audit} />;
   else if (view === 0) {
-    content = screenIdx === 0 ? <A1Screen1 deals={state.deals} runId={state.runTriggers.a1} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a1" })} onDone={() => dispatch({ type: "MARK_DEAL_ANALYZED", id: "WG-10482" })} />
-      : screenIdx === 1 ? <A1Screen2 deal={deal10482} />
-      : <A1Screen3 deal={deal10482} dispatch={dispatch} fulfillRunId={state.runTriggers.a1fulfill} />;
+    content = screenIdx === 0 ? <A1Screen1 onSelectDeal={(id) => { setAgent1DealId(id); setScreenIdx(1); }} />
+      : screenIdx === 1 ? <A1Screen2 initialDealId={agent1DealId} />
+      : <A1Screen3 initialDealId={agent1DealId} />;
   } else if (view === 1) {
-    content = screenIdx === 0 ? <A2Screen1 opps={state.opps} /> : screenIdx === 1 ? <A2Screen2 opps={state.opps} /> : <A2Screen3 opps={state.opps} dispatch={dispatch} />;
+    content = screenIdx === 0 ? <A2Screen1 /> : screenIdx === 1 ? <A2Screen2 /> : <A2Screen3 />;
   } else if (view === 2) {
-    const analyzed = !!state.analyzedAccounts["Meridian Health Systems"];
-    content = screenIdx === 0 ? <A3Screen1 analyzed={analyzed} runId={state.runTriggers.a3} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a3" })} onDone={() => dispatch({ type: "MARK_ACCOUNT_ANALYZED", account: "Meridian Health Systems" })} />
-      : screenIdx === 1 ? <A3Screen2 analyzed={analyzed} />
-      : <A3Screen3 analyzed={analyzed} dispatch={dispatch} done={state.audit.some((e) => e.record === "Meridian Health Systems" && e.event === "Task Created")} />;
+    content = screenIdx === 0 ? <A3Screen1 onStartCall={(ctx) => { setAgent3Context(ctx); setScreenIdx(1); }} />
+      : screenIdx === 1 ? <A3Screen2 initialContext={agent3Context} onSubmitted={(batch) => { setAgent3Pending((p) => [...p, batch]); setScreenIdx(2); }} />
+      : <A3Screen3
+          pendingBatches={agent3Pending}
+          submittedBatches={agent3Submitted}
+          onUpdatePending={setAgent3Pending}
+          onApproved={(batch, writtenTasks) => {
+            setAgent3Pending((p) => p.filter((b) => b.batch_id !== batch.batch_id));
+            setAgent3Submitted((s) => [{ ...batch, written_tasks: writtenTasks, created_at: new Date().toISOString() }, ...s]);
+          }}
+        />;
   } else if (view === 3) {
-    content = screenIdx === 0 ? <A4Screen1 renewals={state.renewals} /> : screenIdx === 1 ? <A4Screen2 renewals={state.renewals} /> : <A4Screen3 renewals={state.renewals} dispatch={dispatch} />;
+    content = screenIdx === 0 ? <A4Screen1 onSelectRenewal={(id) => { setAgent4RenewalId(id); setScreenIdx(1); }} />
+      : screenIdx === 1 ? <A4Screen2 initialRenewalId={agent4RenewalId} />
+      : <A4Screen3 initialRenewalId={agent4RenewalId} />;
   } else if (view === 4) {
-    content = screenIdx === 0 ? <A5Screen1 />
-      : screenIdx === 1 ? <A5Screen2 applications={state.applications} runId={state.runTriggers.a5} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a5" })} onDone={() => dispatch({ type: "MARK_APP_ANALYZED", id: "APP-302" })} />
-      : <A5Screen3 applications={state.applications} dispatch={dispatch} />;
+    content = screenIdx === 0 ? <A5Screen1 /> : screenIdx === 1 ? <A5Screen2 /> : <A5Screen3 />;
   } else if (view === 5) {
-    content = screenIdx === 0 ? <A6Screen1 upsells={state.upsells} />
-      : screenIdx === 1 ? <A6Screen2 upsells={state.upsells} runId={state.runTriggers.a6} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a6" })} onDone={() => dispatch({ type: "MARK_UPSELL_ANALYZED", id: "UP-501" })} />
-      : <A6Screen3 upsells={state.upsells} dispatch={dispatch} />;
+    content = screenIdx === 0 ? <A6Screen1 />
+      : screenIdx === 1 ? <A6Screen2 onGenerated={(result) => { setAgent6Result(result); setScreenIdx(2); }} />
+      : <A6Screen3 generated={agent6Result} onUpdate={(patch) => setAgent6Result((prev) => (prev ? { ...prev, ...patch } : prev))} />;
   } else if (view === 6) {
-    content = screenIdx === 0 ? <A7Screen1 reps={state.reps} runId={state.runTriggers.a7} onRun={() => dispatch({ type: "TRIGGER_RUN", agent: "a7" })} onDone={() => dispatch({ type: "MARK_REP_ANALYZED", id: "REP-04" })} />
-      : screenIdx === 1 ? <A7Screen2 reps={state.reps} /> : <A7Screen3 reps={state.reps} dispatch={dispatch} />;
+    content = screenIdx === 0 ? <A7Screen1 /> : screenIdx === 1 ? <A7Screen2 /> : <A7Screen3 />;
   }
 
   return (
     <DetailContext.Provider value={openDetail}>
     <div className="w-full h-screen overflow-hidden" style={{ background: "#F6F7FB", fontFamily: "'Inter', sans-serif" }}>
       <style>{FONT_IMPORT}{`@keyframes slideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
-      <DetailModal detail={detail} state={state} onClose={() => setDetail(null)} goTo={goTo} />
+      <DetailModal detail={detail} state={state} onClose={() => setDetail(null)} goTo={goTo} liveProducts={liveProducts} liveAccounts={liveAccounts} liveTickets={liveTickets} />
       <div className="flex p-2 sm:p-4 gap-2 sm:gap-4" style={{ width: "125%", height: "125%", transform: "scale(0.8)", transformOrigin: "top left" }}>
       <aside className="shrink-0 flex flex-col rounded-xl shadow-xl overflow-hidden relative" style={{ background: "#12172B", width: collapsed ? "5rem" : "340px" }}>
         <div className="px-3 py-4 border-b flex items-center justify-center" style={{ borderColor: "#242A45" }}>
@@ -139,12 +156,22 @@ export default function App() {
         )}
         {isAgent && (
           <div className="px-4 sm:px-6 lg:px-8 pt-4 bg-white border-b border-[#E7E8F0] flex gap-1 overflow-x-auto">
-            {screenLabels.map((label, i) => (
-              <button key={label} onClick={() => setScreenIdx(i)} className="px-4 py-2.5 text-sm font-medium relative" style={{ color: i === screenIdx ? "#4F46E5" : "#8A90A6" }}>
-                <span className="mr-1.5 text-[11px] font-mono text-[#B7BACC]">{i + 1}</span>{label}
-                {i === screenIdx && <div className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full" style={{ background: "#4F46E5" }} />}
-              </button>
-            ))}
+            {screenLabels.map((label, i) => {
+              const locked = view === 5 && i === 2; // Agent 6's Opportunity + Outreach tab only opens via the Run Agent redirect
+              return (
+                <button
+                  key={label}
+                  onClick={() => !locked && setScreenIdx(i)}
+                  disabled={locked}
+                  title={locked ? "Run the agent from Account Product Gap to open this" : undefined}
+                  className="px-4 py-2.5 text-sm font-medium relative disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ color: i === screenIdx ? "#4F46E5" : "#8A90A6" }}
+                >
+                  <span className="mr-1.5 text-[11px] font-mono text-[#B7BACC]">{i + 1}</span>{label}
+                  {i === screenIdx && <div className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full" style={{ background: "#4F46E5" }} />}
+                </button>
+              );
+            })}
           </div>
         )}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{content}</div>

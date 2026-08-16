@@ -161,10 +161,10 @@ export const AGENT_META = [
 ];
 export const AGENT_SCREEN_LABELS = [
   ["Deal Validation Queue", "Deal Detail", "Sales Ops Approval"],
-  ["Opportunity Co-Pilot", "Opportunity Journey", "Next Best Action"],
+  ["Deal Assistant", "Daily Priorities", "Log Meeting / Call Note"],
   ["Customer 360 Brief", "Meeting / Call Capture", "Post-Call Action Center"],
   ["Renewal Command Center", "Renewal Risk Detail", "Escalation & Recovery"],
-  ["Partner Application", "AI Partner Classification", "Partner Approval"],
+  ["Partner Application Form", "Applications Queue", "Approval Card"],
   ["Expansion Opportunity Map", "Account Product Gap", "Opportunity + Outreach"],
   ["Rep Performance Command Center", "Rep Performance Diagnostic", "Coaching / Recognition"],
 ];
