@@ -117,8 +117,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setSplashFading(true), 5000);
-    const removeTimer = setTimeout(() => setShowSplash(false), 5500);
+    const fadeTimer = setTimeout(() => setSplashFading(true), 2500);
+    const removeTimer = setTimeout(() => setShowSplash(false), 3000);
     return () => { clearTimeout(fadeTimer); clearTimeout(removeTimer); };
   }, []);
 
@@ -251,7 +251,7 @@ export default function App() {
         }}
       >
         <style>{FONT_IMPORT}{`@keyframes splashPop { 0% { transform: scale(0.85); opacity: 0; } 60% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }`}</style>
-        <img src="/image.png" alt="Sales Channel Ops" className="w-28 h-28 object-contain" style={{ animation: "splashPop 0.6s ease-out" }} />
+        <img src="/image.png" alt="Sales Channel Ops" className="w-48 h-48 object-contain" style={{ animation: "splashPop 0.6s ease-out" }} />
         <div className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: DISPLAY }}>Sales Channel Ops</div>
       </div>
     )}
