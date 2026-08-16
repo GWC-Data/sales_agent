@@ -11,7 +11,6 @@ export function Overview({ state, goTo, onRunDemo, demoActive }) {
     <div>
       <div className="flex items-start justify-between mb-5">
         <div><h1 className="text-2xl font-bold text-[#12172B]" style={{ fontFamily: DISPLAY }}>Executive Command Center</h1><p className="text-sm text-[#6B7280] mt-1">CRM &gt; Sales Ops &gt; Finance &gt; ERP/Billing &gt; Provisioning &gt; PRM &gt; AM &gt; Renewal &gt; Performance - one operating layer.</p></div>
-        <button onClick={onRunDemo} disabled={demoActive} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-transform active:scale-[0.97] disabled:opacity-60" style={{ background: "linear-gradient(135deg,#4F46E5,#6D28D9)" }}><Play size={14} fill="white" /> {demoActive ? "Demo running…" : "Run Live Demo"}</button>
       </div>
       <MetricRow metrics={[
         { label: "Deals validated today", value: "128" }, { label: "Exceptions prevented", value: "12" },
