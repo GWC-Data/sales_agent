@@ -11,6 +11,8 @@ import { Overview } from "./components/Overview";
 import { ApprovalCenter } from "./components/ApprovalCenter";
 import { AuditTrail } from "./components/AuditTrail";
 import { DetailModal } from "./components/DetailModal";
+import { ProcessFlowPanel } from "./components/ProcessFlowPanel";
+import { getFlowStatus } from "./lib/agentFlow";
 import sidebarBg from "./assets/sidebar-bg.png";
 import { A1Screen1, A1Screen2, A1Screen3 } from "./components/agents/Agent1";
 import { A2Screen1, A2Screen2, A2Screen3 } from "./components/agents/Agent2";
@@ -24,19 +26,32 @@ import { A7Screen1, A7Screen2, A7Screen3 } from "./components/agents/Agent7";
    APP SHELL
 ========================================================================= */
 export default function App() {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state] = useReducer(reducer, initialState);
   const [view, setView] = useState(-1);
   const [screenIdx, setScreenIdx] = useState(0);
   const [demoStep, setDemoStep] = useState(null);
   const [detail, setDetail] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
   const [agent6Result, setAgent6Result] = useState(null);
   const [agent1DealId, setAgent1DealId] = useState(null);
+  const [agent1Acted, setAgent1Acted] = useState(null);
+  const [agent2Acted, setAgent2Acted] = useState(null);
   const [agent3Context, setAgent3Context] = useState(null);
   const [agent3Pending, setAgent3Pending] = useState([]);
   const [agent3Submitted, setAgent3Submitted] = useState([]);
   const [agent4RenewalId, setAgent4RenewalId] = useState(null);
+  const [agent4Acted, setAgent4Acted] = useState(null);
+  const [agent5Acted, setAgent5Acted] = useState(null);
+  const [agent7Acted, setAgent7Acted] = useState(null);
   const timerRef = useRef(null);
+
+  // The Agent Status panel's "Act" step only lights up once a real decision
+  // has actually been recorded — clear it when a different record is picked
+  // so a stale "done" doesn't linger against the newly-selected one.
+  useEffect(() => { setAgent1Acted(null); }, [agent1DealId]);
+  useEffect(() => { setAgent4Acted(null); }, [agent4RenewalId]);
   const { products: liveProducts } = useProductCatalog();
   const { accounts: liveAccounts } = useAccounts();
   const { tickets: liveTickets } = useTickets();
@@ -44,18 +59,54 @@ export default function App() {
   const goTo = (agentIdx, screen = 0) => { setView(agentIdx); setScreenIdx(screen); };
   const openDetail = (kind, id) => setDetail({ kind, id });
 
-  useEffect(() => {
-    if (!demoStep) return;
+  // "Run Live" walks through Agent 1's real screens instead of a fixed timer
+  // script — each step only advances once the screen it navigated to has
+  // actually finished loading real data (via onReady), never before, and
+  // then holds on the loaded screen for a while so it's actually readable.
+  const DEMO_DWELL_MS = 10000;
+  const demoStepRef = useRef(demoStep);
+  useEffect(() => { demoStepRef.current = demoStep; }, [demoStep]);
+
+  function runDemo() {
     clearTimeout(timerRef.current);
-    if (demoStep === "select") { setView(0); setScreenIdx(0); timerRef.current = setTimeout(() => setDemoStep("analyzing"), 900); }
-    else if (demoStep === "analyzing") { dispatch({ type: "TRIGGER_RUN", agent: "a1" }); timerRef.current = setTimeout(() => setDemoStep("detail"), 7 * 460 + 1100); }
-    else if (demoStep === "detail") { setScreenIdx(1); timerRef.current = setTimeout(() => setDemoStep("reveal"), 1400); }
-    else if (demoStep === "reveal") { setScreenIdx(2); timerRef.current = setTimeout(() => setDemoStep("approve"), 1400); }
-    else if (demoStep === "approve") { dispatch({ type: "DEAL_ACTION", id: "WG-10482", kind: "approve" }); timerRef.current = setTimeout(() => setDemoStep("fulfill"), 3 * 460 + 1300); }
-    else if (demoStep === "fulfill") { timerRef.current = setTimeout(() => setDemoStep("done"), 800); }
-    else if (demoStep === "done") { setView(-1); timerRef.current = setTimeout(() => setDemoStep(null), 10); }
-    return () => clearTimeout(timerRef.current);
-  }, [demoStep]);
+    setAgent1DealId(null);
+    setView(0);
+    setScreenIdx(0);
+    setDemoStep("queue");
+  }
+
+  function handleQueueReady(dealId) {
+    if (demoStepRef.current !== "queue") return;
+    if (!dealId) { setDemoStep(null); return; }
+    setAgent1DealId(dealId);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (demoStepRef.current !== "queue") return;
+      setScreenIdx(1);
+      setDemoStep("detail");
+    }, DEMO_DWELL_MS);
+  }
+
+  function handleDetailReady() {
+    if (demoStepRef.current !== "detail") return;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (demoStepRef.current !== "detail") return;
+      setScreenIdx(2);
+      setDemoStep("approval");
+    }, DEMO_DWELL_MS);
+  }
+
+  function handleApprovalReady() {
+    if (demoStepRef.current !== "approval") return;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (demoStepRef.current !== "approval") return;
+      setDemoStep(null);
+    }, DEMO_DWELL_MS);
+  }
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -65,20 +116,30 @@ export default function App() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setSplashFading(true), 5000);
+    const removeTimer = setTimeout(() => setShowSplash(false), 5500);
+    return () => { clearTimeout(fadeTimer); clearTimeout(removeTimer); };
+  }, []);
+
   const isAgent = view >= 0;
   const meta = isAgent ? AGENT_META[view] : null;
   const screenLabels = isAgent ? AGENT_SCREEN_LABELS[view] : [];
+  const flow = isAgent ? getFlowStatus(view, screenIdx, {
+    agent1DealId, agent1Acted, agent2Acted, agent3Pending, agent3Submitted,
+    agent4RenewalId, agent4Acted, agent5Acted, agent6Result, agent7Acted,
+  }) : null;
 
   let content = null;
-  if (view === -1) content = <Overview state={state} goTo={goTo} demoActive={!!demoStep} onRunDemo={() => setDemoStep("select")} />;
+  if (view === -1) content = <Overview state={state} goTo={goTo} demoActive={!!demoStep} onRunDemo={runDemo} />;
   else if (view === -2) content = <ApprovalCenter approvals={state.approvals} goTo={goTo} />;
   else if (view === -3) content = <AuditTrail audit={state.audit} />;
   else if (view === 0) {
-    content = screenIdx === 0 ? <A1Screen1 onSelectDeal={(id) => { setAgent1DealId(id); setScreenIdx(1); }} />
-      : screenIdx === 1 ? <A1Screen2 initialDealId={agent1DealId} />
-      : <A1Screen3 initialDealId={agent1DealId} />;
+    content = screenIdx === 0 ? <A1Screen1 onSelectDeal={(id) => { setAgent1DealId(id); setScreenIdx(1); }} onReady={handleQueueReady} />
+      : screenIdx === 1 ? <A1Screen2 initialDealId={agent1DealId} onReady={handleDetailReady} />
+      : <A1Screen3 initialDealId={agent1DealId} onReady={handleApprovalReady} onActed={setAgent1Acted} />;
   } else if (view === 1) {
-    content = screenIdx === 0 ? <A2Screen1 /> : screenIdx === 1 ? <A2Screen2 /> : <A2Screen3 />;
+    content = screenIdx === 0 ? <A2Screen1 /> : screenIdx === 1 ? <A2Screen2 /> : <A2Screen3 onActed={setAgent2Acted} />;
   } else if (view === 2) {
     content = screenIdx === 0 ? <A3Screen1 onStartCall={(ctx) => { setAgent3Context(ctx); setScreenIdx(1); }} />
       : screenIdx === 1 ? <A3Screen2 initialContext={agent3Context} onSubmitted={(batch) => { setAgent3Pending((p) => [...p, batch]); setScreenIdx(2); }} />
@@ -94,15 +155,15 @@ export default function App() {
   } else if (view === 3) {
     content = screenIdx === 0 ? <A4Screen1 onSelectRenewal={(id) => { setAgent4RenewalId(id); setScreenIdx(1); }} />
       : screenIdx === 1 ? <A4Screen2 initialRenewalId={agent4RenewalId} />
-      : <A4Screen3 initialRenewalId={agent4RenewalId} />;
+      : <A4Screen3 initialRenewalId={agent4RenewalId} onActed={setAgent4Acted} />;
   } else if (view === 4) {
-    content = screenIdx === 0 ? <A5Screen1 /> : screenIdx === 1 ? <A5Screen2 /> : <A5Screen3 />;
+    content = screenIdx === 0 ? <A5Screen1 /> : screenIdx === 1 ? <A5Screen2 /> : <A5Screen3 onActed={setAgent5Acted} />;
   } else if (view === 5) {
     content = screenIdx === 0 ? <A6Screen1 />
       : screenIdx === 1 ? <A6Screen2 onGenerated={(result) => { setAgent6Result(result); setScreenIdx(2); }} />
       : <A6Screen3 generated={agent6Result} onUpdate={(patch) => setAgent6Result((prev) => (prev ? { ...prev, ...patch } : prev))} />;
   } else if (view === 6) {
-    content = screenIdx === 0 ? <A7Screen1 /> : screenIdx === 1 ? <A7Screen2 /> : <A7Screen3 />;
+    content = screenIdx === 0 ? <A7Screen1 /> : screenIdx === 1 ? <A7Screen2 /> : <A7Screen3 onActed={setAgent7Acted} />;
   }
 
   return (
@@ -176,8 +237,24 @@ export default function App() {
         )}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">{content}</div>
       </main>
+      {isAgent && <ProcessFlowPanel flow={flow} />}
       </div>
     </div>
+    {showSplash && (
+      <div
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-4 transition-opacity duration-500 ease-out"
+        style={{
+          background: "linear-gradient(135deg,#12172B,#1C2242)",
+          fontFamily: "'Inter', sans-serif",
+          opacity: splashFading ? 0 : 1,
+          pointerEvents: splashFading ? "none" : "auto",
+        }}
+      >
+        <style>{FONT_IMPORT}{`@keyframes splashPop { 0% { transform: scale(0.85); opacity: 0; } 60% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }`}</style>
+        <img src="/image.png" alt="Sales Channel Ops" className="w-28 h-28 object-contain" style={{ animation: "splashPop 0.6s ease-out" }} />
+        <div className="text-white font-bold text-lg tracking-tight" style={{ fontFamily: DISPLAY }}>Sales Channel Ops</div>
+      </div>
+    )}
     </DetailContext.Provider>
   );
 }

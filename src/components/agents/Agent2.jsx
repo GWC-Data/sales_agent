@@ -329,7 +329,7 @@ export function A2Screen2() {
   );
 }
 
-export function A2Screen3() {
+export function A2Screen3({ onActed }) {
   const { opportunities } = useNcaOpportunities();
   const [selectedOppId, setSelectedOppId] = useState(null);
   const [noteText, setNoteText] = useState("");
@@ -376,6 +376,7 @@ export function A2Screen3() {
       let msg = `Activity logged for ${selectedOpp?.account_name}.`;
       if (result.advanced) msg += ` Stage advanced to ${result.opportunity.stage}.`;
       setSaveMessage(msg);
+      onActed?.(msg);
       setAnalysis(null);
       setNoteText("");
     } catch (err) {

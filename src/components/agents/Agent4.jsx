@@ -205,7 +205,7 @@ export function A4Screen2({ initialRenewalId }) {
   );
 }
 
-export function A4Screen3({ initialRenewalId }) {
+export function A4Screen3({ initialRenewalId, onActed }) {
   const { renewalId, setRenewalId, options, detail: d, status, error, reload } = useRenewalSelection(initialRenewalId);
   const [actionResult, setActionResult] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -240,7 +240,9 @@ export function A4Screen3({ initialRenewalId }) {
     setActionError(null);
     try {
       const res = await notifyRenewal(renewalId, { triggered_by: "manual", action: kind });
-      setActionResult(`${ACTION_LABEL[kind]} — notified ${res.notified}.`);
+      const msg = `${ACTION_LABEL[kind]} — notified ${res.notified}.`;
+      setActionResult(msg);
+      onActed?.(msg);
       if (kind === "resolve" || kind === "recommend_meeting") reload();
     } catch (err) {
       setActionError(err?.message || "Failed.");

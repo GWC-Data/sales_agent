@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useRef, useContext, createContext } from "react";
+import React, { useState, useEffect, useRef, useId, useContext, createContext } from "react";
 import { AlertTriangle, Sparkles, ChevronRight, ChevronDown, Play, Check, X, Clock } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, YAxis, XAxis, CartesianGrid, Tooltip, Legend } from "recharts";
+import {
+  LineChart, Line, ResponsiveContainer, YAxis, XAxis, CartesianGrid, Tooltip, Legend,
+  AreaChart, Area, BarChart, Bar,
+} from "recharts";
 import { STATUS, DISPLAY, MONO } from "../lib/constants";
 
 // Case/whitespace-insensitive match helper shared by anything reconciling
@@ -24,7 +27,7 @@ export function Pill({ tone = "pending", children }) {
   return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{ color: s.fg, background: s.bg, border: `1px solid ${s.ring}` }}>{children}</span>;
 }
 export function Mono({ children, className = "" }) { return <span className={`font-mono ${className}`} style={{ fontFamily: MONO }}>{children}</span>; }
-export function Card({ children, className = "", style }) { return <div className={`bg-white rounded-xl border border-[#E7E8F0] shadow-[0_1px_2px_rgba(15,20,36,0.04)] ${className}`} style={style}>{children}</div>; }
+export function Card({ children, className = "", style, onClick }) { return <div className={`bg-white rounded-xl border border-[#E7E8F0] shadow-[0_1px_2px_rgba(15,20,36,0.04)] ${className}`} style={style} onClick={onClick}>{children}</div>; }
 
 /* ---- Click-to-detail: any entity reference (account, rep, deal id, ticket, etc.)
    is wrapped in <Field> and opens a detail drawer via context, instead of
@@ -74,6 +77,83 @@ export function MetricRow({ metrics }) {
           {m.sub && <div className="text-xs text-[#9599AC] mt-0.5">{m.sub}</div>}
         </Card>
       ))}
+    </div>
+  );
+}
+
+/* ---- KPI tile with an optional inline area sparkline or horizontal
+   progress-bar meter. Each tile is a single-series decorative accent, not
+   an analytical chart — no legend/tooltip needed (a stat tile's trend is
+   exempt per the dataviz stat-tile contract). Tone reuses the app's
+   existing status color tokens (accent = fg, track = a lighter step of the
+   same ramp) instead of introducing new, unvalidated colors. ---- */
+const KPI_ACCENT = { approved: "#059669", pending: "#4F46E5", exception: "#B45309" };
+const KPI_TRACK = { approved: "#ECFDF5", pending: "#EEF0FF", exception: "#FFFBEB" };
+
+export function KpiCard({ label, value, sub, chart, data, ratio, tone = "pending", onClick }) {
+  const accent = KPI_ACCENT[tone] || KPI_ACCENT.pending;
+  const track = KPI_TRACK[tone] || KPI_TRACK.pending;
+  const gradientId = useId();
+  const pct = typeof ratio === "number" ? Math.round(ratio * 100) : null;
+  return (
+    <Card
+      className={`p-4 ${onClick ? "cursor-pointer transition-colors hover:border-[#C7D2FE]" : ""}`}
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8A90A6] mb-1">{label}</div>
+          <div className="text-2xl font-bold text-[#12172B]" style={{ fontFamily: DISPLAY }}>{value}</div>
+          {sub && <div className="text-xs text-[#9599AC] mt-0.5">{sub}</div>}
+        </div>
+        {chart === "area" && data?.length > 1 && (
+          <div className="shrink-0" style={{ width: 68, height: 34 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.map((v) => ({ v }))} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={accent} stopOpacity={0.35} />
+                    <stop offset="100%" stopColor={accent} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <YAxis hide domain={["dataMin - 2", "dataMax + 2"]} />
+                <Tooltip
+                  cursor={{ stroke: accent, strokeWidth: 1, strokeDasharray: "3 3" }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap" style={{ background: "#12172B", color: "#fff" }}>
+                        {payload[0].value}
+                      </div>
+                    );
+                  }}
+                />
+                <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2} fill={`url(#${gradientId})`} activeDot={{ r: 3, fill: accent, stroke: "#fff", strokeWidth: 1 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        {chart === "bar" && pct != null && <div className="text-sm font-bold shrink-0" style={{ color: accent }}>{pct}%</div>}
+      </div>
+      {chart === "bar" && pct != null && (
+        <div className="w-full mt-3" style={{ height: 10 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart layout="vertical" data={[{ name: label, filled: pct, remaining: 100 - pct }]} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis type="category" dataKey="name" hide />
+              <Bar dataKey="filled" stackId="progress" fill={accent} radius={[4, 0, 0, 4]} />
+              <Bar dataKey="remaining" stackId="progress" fill={track} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </Card>
+  );
+}
+export function KpiRow({ metrics }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+      {metrics.map((m) => <KpiCard key={m.label} {...m} />)}
     </div>
   );
 }

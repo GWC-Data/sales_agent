@@ -166,7 +166,7 @@ export function A5Screen2() {
   );
 }
 
-export function A5Screen3() {
+export function A5Screen3({ onActed }) {
   const { applications, reload: reloadApplications } = usePartnerApplications();
   const { criteria } = useProgramCriteria();
   const [selectedAppId, setSelectedAppId] = useState(null);
@@ -217,6 +217,7 @@ export function A5Screen3() {
     try {
       const result = await approveApplication(selectedAppId, { track, tier, note });
       setActionMessage(result.provisioning.notification);
+      onActed?.(result.provisioning.notification);
       setReview(null);
       reloadApplications();
     } catch (err) {
@@ -230,6 +231,7 @@ export function A5Screen3() {
     setError(null);
     try {
       await rejectApplication(selectedAppId, note || "Did not meet program criteria");
+      onActed?.(`Application ${selectedAppId} rejected.`);
       setReview(null);
       reloadApplications();
     } catch (err) {
@@ -243,6 +245,7 @@ export function A5Screen3() {
     setError(null);
     try {
       await requestMoreInfo(selectedAppId, note || "Please clarify sales model and account volume");
+      onActed?.(`More info requested from ${app?.company_name || selectedAppId}.`);
       setReview(null);
       reloadApplications();
     } catch (err) {

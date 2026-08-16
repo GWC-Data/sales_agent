@@ -116,7 +116,7 @@ export function A7Screen2() {
   );
 }
 
-export function A7Screen3() {
+export function A7Screen3({ onActed }) {
   const { reps } = useCoachingReps();
   const { tasks, reload: reloadTasks } = useCoachingTasks();
   const { nominations, reload: reloadNominations } = useRecognitionNominations();
@@ -157,7 +157,9 @@ export function A7Screen3() {
     setError(null);
     try {
       const task = await createCoachingTask(selectedRepId, note);
-      setActionMessage(`Coaching task ${task.id} created and assigned to ${task.manager_name}.`);
+      const msg = `Coaching task ${task.id} created and assigned to ${task.manager_name}.`;
+      setActionMessage(msg);
+      onActed?.(msg);
       setReview(null);
       reloadTasks();
     } catch (err) {
@@ -171,7 +173,9 @@ export function A7Screen3() {
     setError(null);
     try {
       const nomination = await createRecognitionNomination(selectedRepId, note);
-      setActionMessage(`Recognition nomination ${nomination.id} routed to SLT for review.`);
+      const msg = `Recognition nomination ${nomination.id} routed to SLT for review.`;
+      setActionMessage(msg);
+      onActed?.(msg);
       setReview(null);
       reloadNominations();
     } catch (err) {

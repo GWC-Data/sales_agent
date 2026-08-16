@@ -5,7 +5,7 @@ import {
   fetchDealQueue, fetchDealDetail, submitDealDecision, escalateDealViaEmail,
 } from "../../lib/agent1";
 import { useDealQueue, useDealAuditLog } from "../../hooks/useAgent1";
-import { Pill, Mono, Card, Field, SectionLabel, MetricRow, Table, Dropdown, ActionButton } from "../shared";
+import { Pill, Mono, Card, Field, SectionLabel, MetricRow, Table, Dropdown, ActionButton, PageLoader } from "../shared";
 
 /* =========================================================================
    AGENT 1 — Sales Deal Guardrail & Order Validation
@@ -26,7 +26,7 @@ function fmtAddress(a) {
   return parts.length ? parts.join(", ") : "Address on file is entirely blank";
 }
 
-export function A1Screen1({ onSelectDeal }) {
+export function A1Screen1({ onSelectDeal, onReady }) {
   const [rep, setRep] = useState("");
   const [queue, setQueue] = useState({ deals: [], total_pending: 0, exception_count: 0, escalated_count: 0, upsell_count: 0, downsell_count: 0 });
   const [status, setStatus] = useState("loading");
@@ -38,9 +38,10 @@ export function A1Screen1({ onSelectDeal }) {
     setStatus("loading");
     setError(null);
     fetchDealQueue(rep || undefined)
-      .then((res) => { if (!cancelled) { setQueue(res); setStatus("success"); } })
-      .catch((err) => { if (!cancelled) { setError(err?.message || "Failed to load queue."); setStatus("error"); } });
+      .then((res) => { if (!cancelled) { setQueue(res); setStatus("success"); onReady?.(res.deals[0]?.deal_id); } })
+      .catch((err) => { if (!cancelled) { setError(err?.message || "Failed to load queue."); setStatus("error"); onReady?.(null); } });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rep]);
 
   const repOptions = [{ value: "", label: "All reps" }, ...[...new Set(queue.deals.map((d) => d.rep))].sort().map((r) => ({ value: r, label: r }))];
@@ -59,7 +60,7 @@ export function A1Screen1({ onSelectDeal }) {
       <SectionLabel right={<Dropdown value={rep} options={repOptions} onChange={setRep} placeholder="All reps" />}>Deal Validation Queue</SectionLabel>
 
       {error && <div className="text-sm text-[#DC2626] mb-3">{error}</div>}
-      {status === "loading" && queue.deals.length === 0 && <div className="text-sm text-[#8A90A6]">Running rules engine over the backlog…</div>}
+      {status === "loading" && queue.deals.length === 0 && <PageLoader label="Running rules engine over the backlog…" />}
       {status === "success" && queue.deals.length === 0 && <div className="text-sm text-[#8A90A6]">Queue is empty — every deal has been reviewed.</div>}
       {queue.deals.length > 0 && (
         <Table
@@ -106,7 +107,7 @@ export function A1Screen1({ onSelectDeal }) {
   );
 }
 
-function useDealSelection(initialDealId) {
+function useDealSelection(initialDealId, onReady) {
   const { deals } = useDealQueue();
   const [dealId, setDealId] = useState(initialDealId || null);
   const [detail, setDetail] = useState(null);
@@ -126,8 +127,9 @@ function useDealSelection(initialDealId) {
     setStatus("loading");
     setError(null);
     fetchDealDetail(id)
-      .then((d) => { setDetail(d); setStatus("success"); })
-      .catch((err) => { setError(err?.message || "Failed to load deal."); setStatus("error"); });
+      .then((d) => { setDetail(d); setStatus("success"); onReady?.(); })
+      .catch((err) => { setError(err?.message || "Failed to load deal."); setStatus("error"); onReady?.(); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { load(dealId); }, [dealId, load]);
@@ -136,14 +138,14 @@ function useDealSelection(initialDealId) {
   return { dealId, setDealId, options, detail, status, error, reload: () => load(dealId) };
 }
 
-export function A1Screen2({ initialDealId }) {
-  const { dealId, setDealId, options, detail: d, status, error } = useDealSelection(initialDealId);
+export function A1Screen2({ initialDealId, onReady }) {
+  const { dealId, setDealId, options, detail: d, status, error } = useDealSelection(initialDealId, onReady);
 
   return (
     <div>
       <SectionLabel>Deal Detail — <Dropdown value={dealId} options={options} onChange={setDealId} placeholder="Select a deal…" /></SectionLabel>
       {error && <div className="text-sm text-[#DC2626] mb-3">{error}</div>}
-      {status === "loading" && !d && <div className="text-sm text-[#8A90A6]">Running the capability rules engine and generating the rationale…</div>}
+      {status === "loading" && !d && <PageLoader label="Running the capability rules engine and generating the rationale…" />}
       {d && (
         <Card className="p-5 max-w-3xl">
           <div className="flex items-start justify-between mb-4">
@@ -228,8 +230,8 @@ export function A1Screen2({ initialDealId }) {
   );
 }
 
-export function A1Screen3({ initialDealId }) {
-  const { dealId, setDealId, options, detail: d, status, error, reload } = useDealSelection(initialDealId);
+export function A1Screen3({ initialDealId, onReady, onActed }) {
+  const { dealId, setDealId, options, detail: d, status, error, reload } = useDealSelection(initialDealId, onReady);
   const [reviewer, setReviewer] = useState("");
   const [comment, setComment] = useState("");
   const [toEmail, setToEmail] = useState("");
@@ -250,7 +252,9 @@ export function A1Screen3({ initialDealId }) {
     setDecisionError(null);
     try {
       const res = await submitDealDecision(dealId, { decision, reviewer, comment });
-      setDecisionResult(`Recorded: ${res.decision} by ${res.reviewer}. This deal has left the queue.`);
+      const msg = `Recorded: ${res.decision} by ${res.reviewer}. This deal has left the queue.`;
+      setDecisionResult(msg);
+      onActed?.(msg);
       reload();
     } catch (err) {
       setDecisionError(err?.message || "Failed to record decision.");
@@ -266,7 +270,9 @@ export function A1Screen3({ initialDealId }) {
     setEscalateError(null);
     try {
       const res = await escalateDealViaEmail(dealId, { to_email: toEmail, reviewer, comment });
-      setEscalateResult(`Emailed ${res.emailed_to} — "${res.email_subject}". This deal has left the queue.`);
+      const msg = `Emailed ${res.emailed_to} — "${res.email_subject}". This deal has left the queue.`;
+      setEscalateResult(msg);
+      onActed?.(msg);
       reload();
     } catch (err) {
       setEscalateError(err?.message || "Failed to send escalation email.");
@@ -279,7 +285,7 @@ export function A1Screen3({ initialDealId }) {
     <div>
       <SectionLabel>Sales Ops Approval — <Dropdown value={dealId} options={options} onChange={setDealId} placeholder="Select a deal…" /></SectionLabel>
       {error && <div className="text-sm text-[#DC2626] mb-3">{error}</div>}
-      {status === "loading" && !d && <div className="text-sm text-[#8A90A6]">Loading…</div>}
+      {status === "loading" && !d && <PageLoader />}
       {d && (
         <Card className="p-5 max-w-xl">
           <div className="text-sm text-[#5B5F73] mb-4"><Mono>{d.deal_id}</Mono> — <Field kind="account" id={d.account_name}>{d.account_name}</Field></div>
